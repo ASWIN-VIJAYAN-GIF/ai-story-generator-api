@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 # 1. Force load the environment variables from your .env lockbox
 load_dotenv()
 
-# 2. Start our FastAPI server application
+# 2. Start our FastAPI server applicationn
 app = FastAPI()
 
 # 3. Create a helper function that reads the key right when a user asks for a story
