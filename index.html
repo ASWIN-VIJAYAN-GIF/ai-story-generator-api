@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Silly Story Maker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #2b2150;
+    --paper: #fffdf7;
+    --sun: #ffc93c;
+    --pop: #ff5c8a;
+    --sky: #bfe3ff;
+    --mint: #3ddc97;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: 'Fredoka', system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--sky);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 40px 20px 64px;
+  }
+  main { width: 100%; max-width: 640px; }
+  h1 {
+    font-size: clamp(2.4rem, 8vw, 3.8rem);
+    line-height: 1;
+    margin: 0 0 10px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .sub { font-size: 1.15rem; margin: 0 0 28px; max-width: 46ch; }
+
+  label { display: block; font-weight: 600; font-size: 1.05rem; margin-bottom: 8px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  input[type=text] {
+    flex: 1 1 260px;
+    font: inherit; font-size: 1.1rem;
+    padding: 14px 16px;
+    border: 3px solid var(--ink);
+    border-radius: 14px;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  input::placeholder { color: #8a82ad; }
+  button {
+    font: inherit; font-weight: 600; font-size: 1.1rem;
+    border: 3px solid var(--ink);
+    border-radius: 14px;
+    padding: 14px 22px;
+    cursor: pointer;
+    color: var(--ink);
+    transition: transform .08s, box-shadow .08s;
+  }
+  #go { background: var(--sun); box-shadow: 0 5px 0 var(--ink); }
+  #go:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 0 var(--ink); }
+  #go:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 1px 0 var(--ink); }
+  #go:disabled { opacity: .7; cursor: wait; }
+  :focus-visible { outline: 4px solid var(--pop); outline-offset: 3px; }
+
+  .ideas { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
+  .idea {
+    font-size: .95rem; font-weight: 500;
+    padding: 6px 14px; border-width: 2px; border-radius: 999px;
+    background: var(--paper); box-shadow: none;
+  }
+  .idea:hover { background: var(--mint); }
+
+  #result { margin-top: 36px; }
+  .book {
+    background: var(--paper);
+    border: 3px solid var(--ink);
+    border-radius: 18px;
+    padding: 28px 28px 22px;
+    box-shadow: 8px 8px 0 var(--ink);
+    transform: rotate(-0.6deg);
+  }
+  .book h2 { margin: 0 0 14px; font-size: 1.35rem; color: var(--pop); }
+  .story { font-size: 1.3rem; line-height: 1.6; margin: 0; max-width: 52ch; }
+  .story span { opacity: 0; animation: pop .35s forwards; }
+  @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .actions { display: flex; gap: 10px; margin-top: 22px; flex-wrap: wrap; }
+  .actions button { padding: 9px 16px; font-size: 1rem; background: var(--paper); border-width: 2px; }
+  .actions button:hover { background: var(--sun); }
+
+  .loading { display: flex; align-items: center; gap: 12px; font-size: 1.2rem; font-weight: 500; }
+  .dots i {
+    display: inline-block; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--pop); margin-right: 5px; animation: bounce .8s infinite alternate;
+  }
+  .dots i:nth-child(2) { animation-delay: .15s; background: var(--sun); }
+  .dots i:nth-child(3) { animation-delay: .3s; background: var(--mint); }
+  @keyframes bounce { to { transform: translateY(-10px); } }
+
+  .error {
+    background: #fff1f4; border: 3px solid var(--pop); border-radius: 14px;
+    padding: 16px 18px; font-size: 1.05rem;
+  }
+  .error strong { display: block; margin-bottom: 4px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .story span, .dots i { animation: none; opacity: 1; }
+    button { transition: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Silly Story Maker</h1>
+  <p class="sub">Type anything. A dragon, your cat, a sandwich. Get a short, funny story back.</p>
+
+  <label for="topic">What should the story be about?</label>
+  <div class="row">
+    <input id="topic" type="text" maxlength="120" placeholder="a penguin who is afraid of ice" autocomplete="off">
+    <button id="go" type="button">Tell me a story</button>
+  </div>
+  <div class="ideas" id="ideas" aria-label="Topic ideas"></div>
+
+  <section id="result" aria-live="polite"></section>
+</main>
+
+<script>
+  // Same origin as the FastAPI server. If you open this file directly instead,
+  // change to e.g. "http://127.0.0.1:8000".
+  const API_BASE = "";
+
+  const topicEl = document.getElementById("topic");
+  const goBtn = document.getElementById("go");
+  const resultEl = document.getElementById("result");
+  const ideas = ["a sleepy robot", "a dragon who hates spicy food", "a talking sandwich", "my cat the astronaut"];
+
+  const ideasEl = document.getElementById("ideas");
+  ideas.forEach(text => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "idea"; b.textContent = text;
+    b.onclick = () => { topicEl.value = text; generate(); };
+    ideasEl.appendChild(b);
+  });
+
+  topicEl.addEventListener("keydown", e => { if (e.key === "Enter") generate(); });
+  goBtn.addEventListener("click", generate);
+
+  function showLoading() {
+    resultEl.innerHTML = '<div class="loading"><span class="dots"><i></i><i></i><i></i></span>Cooking up a story...</div>';
+  }
+
+  function showError(title, detail) {
+    resultEl.innerHTML = "";
+    const box = document.createElement("div");
+    box.className = "error";
+    const s = document.createElement("strong"); s.textContent = title;
+    box.append(s, detail);
+    resultEl.appendChild(box);
+  }
+
+  function showStory(topic, story) {
+    resultEl.innerHTML = "";
+    const book = document.createElement("div");
+    book.className = "book";
+    const h = document.createElement("h2");
+    h.textContent = topic;
+    const p = document.createElement("p");
+    p.className = "story";
+    // Reveal one sentence at a time
+    (story.match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g) || [story]).forEach((sentence, i) => {
+      const span = document.createElement("span");
+      span.textContent = sentence;
+      span.style.animationDelay = (i * 0.45) + "s";
+      p.appendChild(span);
+    });
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    const again = document.createElement("button");
+    again.type = "button"; again.textContent = "Tell it again";
+    again.onclick = generate;
+    const copy = document.createElement("button");
+    copy.type = "button"; copy.textContent = "Copy story";
+    copy.onclick = async () => {
+      try { await navigator.clipboard.writeText(story); copy.textContent = "Copied"; }
+      catch { copy.textContent = "Copy failed"; }
+      setTimeout(() => copy.textContent = "Copy story", 1500);
+    };
+    actions.append(again, copy);
+    book.append(h, p, actions);
+    resultEl.appendChild(book);
+  }
+
+  async function generate() {
+    const topic = topicEl.value.trim();
+    if (!topic) {
+      showError("Add a topic first.", "Type something like \"a dragon who loves tea\" and try again.");
+      topicEl.focus();
+      return;
+    }
+    goBtn.disabled = true;
+    showLoading();
+    try {
+      const res = await fetch(API_BASE + "/generate-story", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic })
+      });
+      if (!res.ok) {
+        throw new Error(res.status === 500
+          ? "The server hit an error. Check that GEMINI_API_KEY is set in your .env file and the key is valid."
+          : "The server answered with status " + res.status + ".");
+      }
+      const data = await res.json();
+      if (!data.story) throw new Error("The server replied, but there was no story in it. Try a different topic.");
+      showStory(topic, data.story);
+    } catch (err) {
+      const offline = err instanceof TypeError;
+      showError(
+        offline ? "Can't reach the server." : "Story failed.",
+        offline ? "Make sure the backend is running (uvicorn main:app --reload) and try again." : err.message
+      );
+    } finally {
+      goBtn.disabled = false;
+    }
+  }
+</script>
+</body>
+</html>
